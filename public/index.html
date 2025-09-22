@@ -5,39 +5,89 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Retro Platformer — 3 Levels</title>
   <style>
-    body {margin:0;background:#000;color:#fff;font-family:monospace;display:flex;flex-direction:column;align-items:center;}
+    *,*::before,*::after {box-sizing:border-box;}
+    :root {
+      --panel-bg: rgba(10,10,10,0.9);
+      --panel-border: #fff;
+      --accent: #0ff;
+      --text-muted: #c8c8c8;
+    }
+    body {
+      margin:0;
+      min-height:100vh;
+      background:#050505;
+      background-image:radial-gradient(circle at 20% -10%, #2a2a2a 0%, rgba(5,5,5,0.35) 35%),
+        radial-gradient(circle at 80% 0%, rgba(50,50,50,0.5) 0%, rgba(5,5,5,0.05) 45%);
+      color:#fff;
+      font-family:monospace;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+    }
     .hidden {display:none !important;}
     .hud {margin:10px;}
     canvas {image-rendering:pixelated;border:2px solid #fff;background:#111;}
-    button {margin-top:10px;padding:5px 10px;font-family:monospace;}
+    button {
+      margin-top:10px;
+      padding:8px 12px;
+      font-family:monospace;
+      font-size:14px;
+      letter-spacing:1px;
+      color:#fff;
+      background:linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(0,0,0,0.45) 100%);
+      border:1px solid rgba(255,255,255,0.7);
+      border-radius:4px;
+      cursor:pointer;
+      transition:background 160ms ease,border-color 160ms ease,transform 160ms ease;
+    }
+    button:disabled {
+      opacity:0.45;
+      cursor:not-allowed;
+      filter:saturate(0.6);
+    }
+    button:hover {
+      background:linear-gradient(180deg, rgba(0,255,255,0.35) 0%, rgba(0,0,0,0.55) 100%);
+      border-color:var(--accent);
+    }
+    #settingsBtn,
+    #settingsBtn:hover {
+      background:linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(0,0,0,0.45) 100%);
+      border-color:rgba(255,255,255,0.7);
+    }
+    button:focus-visible {
+      outline:2px solid var(--accent);
+      outline-offset:2px;
+    }
     .overlay {position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-family:monospace;font-size:16px;text-align:center;pointer-events:none;}
     .overlay.hidden {display:none;}
     #completionMenu {position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);color:#fff;font-family:monospace;padding:20px;}
     #completionMenu.active {display:flex;}
-    .completion-content {border:2px solid #fff;background:#111;padding:20px;width:320px;text-align:center;display:flex;flex-direction:column;gap:12px;}
-    .completion-content h2 {margin:0;font-size:20px;letter-spacing:2px;text-transform:uppercase;}
-    .completion-content h3 {margin:0;letter-spacing:1px;text-transform:uppercase;font-size:14px;}
-    .completion-content p {margin:0;font-size:14px;}
+    .completion-content {border:2px solid var(--panel-border);background:var(--panel-bg);padding:24px;width:min(90vw,360px);text-align:center;display:flex;flex-direction:column;gap:14px;box-shadow:0 12px 32px rgba(0,0,0,0.55);}
+    .completion-content h2 {margin:0;font-size:22px;letter-spacing:2px;text-transform:uppercase;}
+    .completion-content h3 {margin:0;letter-spacing:1px;text-transform:uppercase;font-size:14px;color:var(--accent);}
+    .completion-content p {margin:0;font-size:14px;color:var(--text-muted);}
     .completion-content form {display:flex;flex-direction:column;gap:6px;}
-    .completion-content label {font-size:12px;text-transform:uppercase;letter-spacing:1px;}
-    .completion-content input {padding:6px;font-family:monospace;background:#000;border:1px solid #fff;color:#fff;}
-    .completion-content button {margin-top:0;}
+    .completion-content label {font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);}
+    .completion-content input {padding:6px;font-family:monospace;background:#000;border:1px solid rgba(255,255,255,0.7);color:#fff;border-radius:4px;width:100%;}
+    .completion-content button {margin-top:0;width:100%;}
     .leaderboard-list {text-align:left;margin:0 auto;padding-left:20px;}
     .leaderboard-list li {margin-bottom:4px;}
     .leaderboard-list li.highlight {color:#0ff;font-weight:bold;}
-    .fullscreen-overlay {position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000;color:#fff;fon
-t-family:monospace;z-index:20;}
-    .menu-panel {border:2px solid #fff;background:#111;padding:20px;width:320px;text-align:center;display:flex;flex-direction:colu
-mn;gap:12px;}
-    .menu-panel h1 {margin:0;font-size:24px;letter-spacing:3px;text-transform:uppercase;}
-    .menu-panel p {margin:0;font-size:14px;}
-    .menu-panel form {display:flex;flex-direction:column;gap:8px;}
-    .menu-panel label {font-size:12px;text-transform:uppercase;letter-spacing:1px;}
-    .menu-panel input {padding:6px;font-family:monospace;background:#000;border:1px solid #fff;color:#fff;}
-    .menu-buttons {display:flex;flex-direction:column;gap:8px;}
-    .menu-buttons button {padding:8px 12px;font-family:monospace;letter-spacing:1px;margin-top:0;}
+    .fullscreen-overlay {position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:32px;background:rgba(0,0,0,0.85);color:#fff;font-family:monospace;z-index:20;backdrop-filter:blur(4px);}
+    .menu-panel {position:relative;border:2px solid var(--panel-border);background:var(--panel-bg);padding:26px 28px 30px;width:min(90vw,360px);text-align:left;display:flex;flex-direction:column;gap:16px;box-shadow:0 12px 32px rgba(0,0,0,0.55);}
+    .menu-panel::after {content:"";position:absolute;inset:12px;border:1px solid rgba(255,255,255,0.15);pointer-events:none;}
+    .menu-panel h1 {margin:0;font-size:26px;letter-spacing:4px;text-transform:uppercase;}
+    .menu-panel p {margin:0;font-size:14px;color:var(--text-muted);}
+    .menu-panel form {display:flex;flex-direction:column;gap:10px;}
+    .menu-panel label {font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);}
+    .menu-panel input {padding:8px 10px;font-family:monospace;background:#000;border:1px solid rgba(255,255,255,0.7);color:#fff;border-radius:4px;width:100%;}
+    .menu-buttons {display:flex;flex-direction:column;gap:10px;width:100%;}
+    .menu-buttons button {margin-top:0;width:100%;}
     .completion-content .submit-info {font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#0ff;}
   </style>
+
+
 </head>
 <body>
   <div id="welcomeScreen" class="fullscreen-overlay hidden">
