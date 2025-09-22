@@ -50,11 +50,6 @@
       background:linear-gradient(180deg, rgba(0,255,255,0.35) 0%, rgba(0,0,0,0.55) 100%);
       border-color:var(--accent);
     }
-    #settingsBtn,
-    #settingsBtn:hover {
-      background:linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(0,0,0,0.45) 100%);
-      border-color:rgba(255,255,255,0.7);
-    }
     button:focus-visible {
       outline:2px solid var(--accent);
       outline-offset:2px;
@@ -163,6 +158,8 @@
 
     const player={x:60,y:0,w:20,h:20,vx:0,vy:0,onGround:false,jumpsUsed:0}; // square player
     const GRAVITY=0.8,SPEED=6,JUMP_V=-14;
+    const BASE_FRAME=1000/60;
+    const MAX_FRAME=BASE_FRAME*3;
 
     function makeDot(x,y){return{x,y,hitR:18,collected:false};}
 
@@ -336,14 +333,14 @@
       }
     }
 
-    function tick(){
+    function tick(dt){
       const left=keys.has('ArrowLeft')||keys.has('KeyA');
       const right=keys.has('ArrowRight')||keys.has('KeyD');
 
       if(left) player.vx=-SPEED; else if(right) player.vx=SPEED; else player.vx=0;
 
-      player.vy+=GRAVITY;
-      let nx=player.x+player.vx,ny=player.y+player.vy;
+      player.vy+=GRAVITY*dt;
+      let nx=player.x+player.vx*dt,ny=player.y+player.vy*dt;
       const r=resolve(nx,ny,player.vx,player.vy);
       player.x=r.x;player.y=r.y;player.vx=r.vx;player.vy=r.vy;player.onGround=r.onGround;if(player.onGround)player.jumpsUsed=0;
       if(player.y>H+200)resetToSpawn();
@@ -363,8 +360,8 @@
         }
       }
 
-      for(const p of particles){p.y+=2;p.alpha-=0.05;}while(particles.length&&particles[0].alpha<=0)particles.shift();
-      for(const t of triangles){t.x+=t.dx;t.y+=t.dy;t.alpha-=0.04;}while(triangles.length&&triangles[0].alpha<=0)triangles.shift();
+      for(const p of particles){p.y+=2*dt;p.alpha-=0.05*dt;}while(particles.length&&particles[0].alpha<=0)particles.shift();
+      for(const t of triangles){t.x+=t.dx*dt;t.y+=t.dy*dt;t.alpha-=0.04*dt;}while(triangles.length&&triangles[0].alpha<=0)triangles.shift();
 
       draw();updateTimerUI();
     }
@@ -395,14 +392,20 @@
       mainMenu.classList.toggle('hidden',appState!=='menu');
       settingsMenu.classList.toggle('hidden',appState!=='settings');
     }
+    let lastFrameTime=null;
     function stopLoop(){
       if(animationId!=null){cancelAnimationFrame(animationId);animationId=null;}
+      lastFrameTime=null;
     }
     function startLoop(){
       stopLoop();
-      const frame=()=>{
-        if(appState!=='game'){animationId=null;return;}
-        tick();
+      const frame=now=>{
+        if(appState!=='game'){animationId=null;lastFrameTime=null;return;}
+        if(lastFrameTime==null){lastFrameTime=now;animationId=requestAnimationFrame(frame);return;}
+        const delta=Math.min(MAX_FRAME,now-lastFrameTime);
+        const dt=delta/BASE_FRAME;
+        lastFrameTime=now;
+        if(dt>0)tick(dt);
         animationId=requestAnimationFrame(frame);
       };
       animationId=requestAnimationFrame(frame);
