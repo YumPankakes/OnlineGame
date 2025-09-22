@@ -69,6 +69,8 @@
     .leaderboard-list {text-align:left;margin:0 auto;padding-left:20px;}
     .leaderboard-list li {margin-bottom:4px;}
     .leaderboard-list li.highlight {color:#0ff;font-weight:bold;}
+    .leaderboard-section {border-top:1px solid rgba(255,255,255,0.15);padding-top:12px;margin-top:8px;}
+    .leaderboard-section h2 {margin:0 0 8px;font-size:16px;letter-spacing:2px;text-transform:uppercase;}
     .fullscreen-overlay {position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:32px;background:rgba(0,0,0,0.85);color:#fff;font-family:monospace;z-index:20;backdrop-filter:blur(4px);}
     .menu-panel {position:relative;border:2px solid var(--panel-border);background:var(--panel-bg);padding:26px 28px 30px;width:min(90vw,360px);text-align:left;display:flex;flex-direction:column;gap:16px;box-shadow:0 12px 32px rgba(0,0,0,0.55);}
     .menu-panel::after {content:"";position:absolute;inset:12px;border:1px solid rgba(255,255,255,0.15);pointer-events:none;}
@@ -79,7 +81,8 @@
     .menu-panel input {padding:8px 10px;font-family:monospace;background:#000;border:1px solid rgba(255,255,255,0.7);color:#fff;border-radius:4px;width:100%;}
     .menu-buttons {display:flex;flex-direction:column;gap:10px;width:100%;}
     .menu-buttons button {margin-top:0;width:100%;}
-    .completion-content .submit-info {font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#0ff;}
+    .completion-content .submit-info {font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);}
+    .completion-content .submit-status {font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--accent);}
   </style>
 
 
@@ -101,9 +104,14 @@
     <div class="menu-panel">
       <h1>PLATFORMER</h1>
       <p>Current Name: <span id="menuPlayerName">Player</span></p>
+      <div class="leaderboard-section">
+        <h2>Top 20 Times</h2>
+        <ol id="mainLeaderboard" class="leaderboard-list"></ol>
+      </div>
       <div class="menu-buttons">
         <button id="playBtn" type="button">Play</button>
         <button id="settingsBtn" type="button">Settings</button>
+        <button id="exitBtn" type="button">Exit</button>
       </div>
     </div>
   </div>
@@ -135,9 +143,9 @@
         <h2>Complete!</h2>
         <p>Your time: <span id="finalTime">00:00.000</span></p>
         <div class="submit-info">Submitting as: <span id="scorePlayerName">Player</span></div>
-        <button id="submitScoreBtn" type="button">Submit Score</button>
+        <div id="submitStatus" class="submit-status">Preparing submission…</div>
         <div>
-          <h3>Top 5</h3>
+          <h3>Top 20</h3>
           <ol id="leaderboard" class="leaderboard-list"></ol>
         </div>
         <button id="menuRestartBtn" type="button">Back to Menu</button>
@@ -169,7 +177,7 @@
       {spawn:{x:60,y:440},plats:[{x:0,y:480,w:900,h:40,color:'rgb(85,85,85)'},{x:120,y:430,w:90,h:20,color:'rgb(85,85,85)'},{x:240,y:380,w:90,h:20,color:'rgb(85,85,85)'},{x:360,y:330,w:90,h:20,color:'rgb(85,85,85)'},{x:480,y:280,w:90,h:20,color:'rgb(85,85,85)'},{x:600,y:230,w:90,h:20,color:'rgb(85,85,85)'},{x:720,y:185,w:120,h:20,color:'rgb(85,85,85)'},{x:820,y:145,w:60,h:20,color:'rgb(85,85,85)'}],dots:[makeDot(150,410),makeDot(270,360),makeDot(390,310),makeDot(510,260),makeDot(630,210),makeDot(760,170),makeDot(850,130)]}
     ];
 
-    let levelIdx=0,firstMoveArmed=true,timerStart=null,timerEnd=null,scoreSubmitted=false,highlightedEntry=null;
+    let levelIdx=0,firstMoveArmed=true,timerStart=null,timerEnd=null,scoreSubmitted=false;
     let appState='welcome';
     let animationId=null;
 
@@ -207,7 +215,8 @@
     const completionMenu=document.getElementById('completionMenu');
     const finalTimeEl=document.getElementById('finalTime');
     const leaderboardEl=document.getElementById('leaderboard');
-    const submitScoreBtn=document.getElementById('submitScoreBtn');
+    const mainLeaderboardEl=document.getElementById('mainLeaderboard');
+    const submitStatusEl=document.getElementById('submitStatus');
     const scorePlayerNameEl=document.getElementById('scorePlayerName');
     const menuRestartBtn=document.getElementById('menuRestartBtn');
     const restartBtn=document.getElementById('restartBtn');
@@ -224,61 +233,56 @@
     const settingsNameInput=document.getElementById('settingsName');
     const settingsCancelBtn=document.getElementById('settingsCancel');
     const menuPlayerNameEl=document.getElementById('menuPlayerName');
+    const exitBtn=document.getElementById('exitBtn');
 
     function fmt(ms){if(ms==null)return'00:00.000';const t=Math.floor(ms);const m=Math.floor(t/60000);const s=Math.floor((t%60000)/1000);const ms3=String(t%1000).padStart(3,'0');return`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${ms3}`;}
-    function updateTimerUI(){const t=timerEnd??(timerStart?performance.now()-timerStart:0);timeText.textContent=fmt(t);} 
+    function updateTimerUI(){const t=timerEnd??(timerStart?performance.now()-timerStart:0);timeText.textContent=fmt(t);}
     function overlay(msg){if(msg){overlayEl.textContent=msg;overlayEl.classList.remove('hidden');}else{overlayEl.textContent='';overlayEl.classList.add('hidden');}}
 
-    const LB_KEY='retroPlatformerLB';
     const NAME_KEY='retroPlatformerName';
-    function loadLB(){try{return JSON.parse(localStorage.getItem(LB_KEY))||[]}catch{return[]}}
-    function saveLB(a){localStorage.setItem(LB_KEY,JSON.stringify(a));}
     function loadName(){try{return localStorage.getItem(NAME_KEY)||'';}catch{return'';}}
     function saveNameValue(name){try{localStorage.setItem(NAME_KEY,name);}catch{}}
     function sanitizeName(value){return(value||'').trim().slice(0,16);}
     const storedName=sanitizeName(loadName());
     const hadStoredName=!!storedName;
     let currentPlayerName=storedName||'Player';
+    let leaderboardScores=[];
+    let highlightedEntryId=null;
+    let submitAttempts=0;
+    const MAX_SUBMIT_ATTEMPTS=5;
+
     function updateNameDisplays(){if(menuPlayerNameEl)menuPlayerNameEl.textContent=currentPlayerName;if(scorePlayerNameEl)scorePlayerNameEl.textContent=currentPlayerName;}
     function setPlayerName(value){const sanitized=sanitizeName(value);currentPlayerName=sanitized||'Player';saveNameValue(currentPlayerName);updateNameDisplays();}
-    function pushTime(ms,name){
-      const cleanName=sanitizeName(name)||'Player';
-      if(!cleanName)return false;
-      const arr=loadLB();
-      const entry={ms,name:cleanName};
-      arr.push(entry);
-      arr.sort((a,b)=>a.ms-b.ms);
-      let kept=true;
-      while(arr.length>5){
-        const removed=arr.pop();
-        if(removed===entry)kept=false;
+
+    function setSubmitStatus(message,isError=false){if(!submitStatusEl)return;submitStatusEl.textContent=message;submitStatusEl.style.color=isError?'#ff6b6b':'var(--accent)';}
+
+    function leaderboardMarkup(highlightId){if(!leaderboardScores.length){return '<li>No times yet</li>';}let highlightUsed=false;return leaderboardScores.map((entry,index)=>{const shouldHighlight=!!highlightId&&!highlightUsed&&entry.id===highlightId;if(shouldHighlight)highlightUsed=true;const cls=shouldHighlight?' class="highlight"':'';return `<li${cls}>${index+1}. ${entry.name}: ${fmt(entry.ms)}</li>`;}).join('');}
+
+    function renderLeaderboards(){if(leaderboardEl)leaderboardEl.innerHTML=leaderboardMarkup(highlightedEntryId);if(mainLeaderboardEl)mainLeaderboardEl.innerHTML=leaderboardMarkup(null);}
+
+    function applyLeaderboard(scores){
+      if(Array.isArray(scores)){
+        leaderboardScores=scores.slice(0,20);
+      }else{
+        leaderboardScores=[];
       }
-      highlightedEntry=kept?{ms:entry.ms,name:entry.name}:null;
-      saveLB(arr);
-      return kept;
-    }
-    function renderLB(){
-      const arr=loadLB();
-      if(!arr.length){
-        leaderboardEl.innerHTML='<li>No times yet</li>';
-        return;
+      if(highlightedEntryId&&!leaderboardScores.some(entry=>entry.id===highlightedEntryId)){
+        highlightedEntryId=null;
       }
-      let highlightUsed=false;
-      leaderboardEl.innerHTML=arr.map(x=>{
-        const shouldHighlight=!highlightUsed&&highlightedEntry&&x.ms===highlightedEntry.ms&&x.name===highlightedEntry.name;
-        if(shouldHighlight)highlightUsed=true;
-        const cls=shouldHighlight?' class="highlight"':'';
-        return `<li${cls}>${x.name}: ${fmt(x.ms)}</li>`;
-      }).join('');
+      renderLeaderboards();
     }
-    function showCompletionMenu(){
-      if(timerEnd==null)return;
-      finalTimeEl.textContent=fmt(timerEnd);
-      updateNameDisplays();
-      renderLB();
-      completionMenu.classList.add('active');
-      if(submitScoreBtn)submitScoreBtn.disabled=scoreSubmitted;
-    }
+
+    function handleLeaderboardPayload(payload){if(payload&&Array.isArray(payload.scores)){applyLeaderboard(payload.scores);}}
+
+    async function fetchLeaderboard(){try{const res=await fetch('/api/scores');if(!res.ok)return;const data=await res.json();handleLeaderboardPayload(data);}catch(err){console.error('Failed to load leaderboard',err);}}
+
+    async function submitScore(autoRetry=true){if(timerEnd==null||scoreSubmitted)return;scoreSubmitted=true;submitAttempts++;setSubmitStatus('Submitting score…');try{const res=await fetch('/api/scores',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:currentPlayerName,ms:timerEnd})});if(!res.ok)throw new Error('Request failed');const data=await res.json();if(data&&Array.isArray(data.scores)){applyLeaderboard(data.scores);}if(data&&data.entry){highlightedEntryId=data.entry.id;}else{highlightedEntryId=null;}if(data&&data.accepted===false){setSubmitStatus('Score submitted (outside top 20).');}else{setSubmitStatus('Score submitted!');}submitAttempts=0;}catch(err){console.error('Failed to submit score',err);scoreSubmitted=false;if(autoRetry&&submitAttempts<MAX_SUBMIT_ATTEMPTS){setSubmitStatus('Submission failed. Retrying…',true);setTimeout(()=>submitScore(autoRetry),2000);}else{setSubmitStatus('Unable to submit score.',true);}}finally{renderLeaderboards();}}
+
+    function resetSubmissionState(){scoreSubmitted=false;submitAttempts=0;highlightedEntryId=null;setSubmitStatus('Preparing submission…');}
+
+    socket.on('leaderboard',payload=>{handleLeaderboardPayload(payload);});
+
+    function showCompletionMenu(){if(timerEnd==null)return;finalTimeEl.textContent=fmt(timerEnd);updateNameDisplays();renderLeaderboards();completionMenu.classList.add('active');submitScore();}
     function hideCompletionMenu(){
       completionMenu.classList.remove('active');
     }
@@ -297,9 +301,7 @@
         firstMoveArmed=true;
         timerStart=null;
         timerEnd=null;
-        scoreSubmitted=false;
-        highlightedEntry=null;
-        if(submitScoreBtn)submitScoreBtn.disabled=false;
+        resetSubmissionState();
         overlay('PRESS ANY MOVE KEY TO START');
       }else overlay('');
     }
@@ -453,14 +455,7 @@
 
     restartBtn.addEventListener('click',()=>{showMainMenu();});
     menuRestartBtn.addEventListener('click',()=>{showMainMenu();});
-    submitScoreBtn.addEventListener('click',()=>{
-      if(timerEnd==null||scoreSubmitted)return;
-      pushTime(timerEnd,currentPlayerName);
-      renderLB();
-      scoreSubmitted=true;
-      submitScoreBtn.disabled=true;
-      updateNameDisplays();
-    });
+    if(exitBtn){exitBtn.addEventListener('click',()=>{window.location.href='about:blank';});}
     welcomeForm.addEventListener('submit',e=>{
       e.preventDefault();
       setPlayerName(welcomeNameInput.value);
@@ -480,7 +475,9 @@
 
     function init(){
       updateNameDisplays();
-      renderLB();
+      resetSubmissionState();
+      renderLeaderboards();
+      fetchLeaderboard();
       if(hadStoredName){
         showMainMenu();
       }else{
