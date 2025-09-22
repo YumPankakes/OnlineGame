@@ -23,6 +23,7 @@
     .completion-content button {margin-top:0;}
     .leaderboard-list {text-align:left;margin:0 auto;padding-left:20px;}
     .leaderboard-list li {margin-bottom:4px;}
+    .leaderboard-list li.highlight {color:#0ff;font-weight:bold;}
   </style>
 </head>
 <body>
@@ -36,7 +37,7 @@
     <div id="overlay" class="overlay"></div>
     <div id="completionMenu">
       <div class="completion-content">
-        <h2>Complate!</h2>
+        <h2>Complete!</h2>
         <p>Your time: <span id="finalTime">00:00.000</span></p>
         <form id="scoreForm">
           <label for="playerName">Enter your name</label>
@@ -74,7 +75,7 @@
       {spawn:{x:60,y:440},plats:[{x:0,y:480,w:900,h:40,color:'rgb(85,85,85)'},{x:120,y:430,w:90,h:20,color:'rgb(85,85,85)'},{x:240,y:380,w:90,h:20,color:'rgb(85,85,85)'},{x:360,y:330,w:90,h:20,color:'rgb(85,85,85)'},{x:480,y:280,w:90,h:20,color:'rgb(85,85,85)'},{x:600,y:230,w:90,h:20,color:'rgb(85,85,85)'},{x:720,y:185,w:120,h:20,color:'rgb(85,85,85)'},{x:820,y:145,w:60,h:20,color:'rgb(85,85,85)'}],dots:[makeDot(150,410),makeDot(270,360),makeDot(390,310),makeDot(510,260),makeDot(630,210),makeDot(760,170),makeDot(850,130)]}
     ];
 
-    let levelIdx=0,firstMoveArmed=true,timerStart=null,timerEnd=null;
+    let levelIdx=0,firstMoveArmed=true,timerStart=null,timerEnd=null,scoreSubmitted=false,highlightedEntry=null;
 
     const keys=new Set();
     const startKeys=new Set(['ArrowLeft','ArrowRight','KeyA','KeyD','Space','KeyW','ArrowUp']);
@@ -109,6 +110,7 @@
     const playerNameInput=document.getElementById('playerName');
     const menuRestartBtn=document.getElementById('menuRestartBtn');
     const leaderboardEl=document.getElementById('leaderboard');
+    const submitBtn=scoreForm?scoreForm.querySelector('button[type="submit"]'):null;
 
     function fmt(ms){if(ms==null)return'00:00.000';const t=Math.floor(ms);const m=Math.floor(t/60000);const s=Math.floor((t%60000)/1000);const ms3=String(t%1000).padStart(3,'0');return`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${ms3}`;}
     function updateTimerUI(){const t=timerEnd??(timerStart?performance.now()-timerStart:0);timeText.textContent=fmt(t);} 
@@ -118,16 +120,33 @@
     function loadLB(){try{return JSON.parse(localStorage.getItem(LB_KEY))||[]}catch{return[]}}
     function saveLB(a){localStorage.setItem(LB_KEY,JSON.stringify(a));}
     function pushTime(ms,name){
-      if(!name)return;
+      if(!name)return false;
       const arr=loadLB();
-      arr.push({ms,name});
+      const entry={ms,name};
+      arr.push(entry);
       arr.sort((a,b)=>a.ms-b.ms);
-      while(arr.length>5)arr.pop();
+      let kept=true;
+      while(arr.length>5){
+        const removed=arr.pop();
+        if(removed===entry)kept=false;
+      }
+      highlightedEntry=kept?{ms:entry.ms,name:entry.name}:null;
       saveLB(arr);
+      return kept;
     }
     function renderLB(){
       const arr=loadLB();
-      leaderboardEl.innerHTML=arr.length?arr.map(x=>`<li>${x.name}: ${fmt(x.ms)}</li>`).join(''):'<li>No times yet</li>';
+      if(!arr.length){
+        leaderboardEl.innerHTML='<li>No times yet</li>';
+        return;
+      }
+      let highlightUsed=false;
+      leaderboardEl.innerHTML=arr.map(x=>{
+        const shouldHighlight=!highlightUsed&&highlightedEntry&&x.ms===highlightedEntry.ms&&x.name===highlightedEntry.name;
+        if(shouldHighlight)highlightUsed=true;
+        const cls=shouldHighlight?' class="highlight"':'';
+        return `<li${cls}>${x.name}: ${fmt(x.ms)}</li>`;
+      }).join('');
     }
     function showCompletionMenu(){
       if(timerEnd==null)return;
@@ -135,6 +154,7 @@
       finalTimeEl.textContent=fmt(timerEnd);
       renderLB();
       completionMenu.classList.add('active');
+      if(submitBtn)submitBtn.disabled=scoreSubmitted;
       if(playerNameInput) setTimeout(()=>playerNameInput.focus(),0);
     }
     function hideCompletionMenu(){
@@ -145,7 +165,23 @@
     function currentLevel(){return levels[levelIdx];}
     function resetDots(lvl){for(const d of lvl.dots){d.collected=false;}}
     function resetToSpawn(){const lvl=currentLevel();player.x=lvl.spawn.x;player.y=lvl.spawn.y;player.vx=0;player.vy=0;player.onGround=false;player.jumpsUsed=0;}
-    function loadLevel(i){hideCompletionMenu();levelIdx=i;const lvl=currentLevel();resetDots(lvl);levelText.textContent=`Level: ${levelIdx+1} / ${levels.length}`;resetToSpawn();if(levelIdx===0){firstMoveArmed=true;timerStart=null;timerEnd=null;overlay('PRESS ANY MOVE KEY TO START');}else overlay('');}
+    function loadLevel(i){
+      hideCompletionMenu();
+      levelIdx=i;
+      const lvl=currentLevel();
+      resetDots(lvl);
+      levelText.textContent=`Level: ${levelIdx+1} / ${levels.length}`;
+      resetToSpawn();
+      if(levelIdx===0){
+        firstMoveArmed=true;
+        timerStart=null;
+        timerEnd=null;
+        scoreSubmitted=false;
+        highlightedEntry=null;
+        if(submitBtn)submitBtn.disabled=false;
+        overlay('PRESS ANY MOVE KEY TO START');
+      }else overlay('');
+    }
 
     function aabb(a,b){return!(a.x+a.w<=b.x||a.x>=b.x+b.w||a.y+a.h<=b.y||a.y>=b.y+b.h);}
     function resolve(px,py,vx,vy){const lvl=currentLevel();const box={x:px,y:py,w:player.w,h:player.h};let onGround=false;for(const r of lvl.plats){if(!aabb(box,r))continue;const dx1=(r.x+r.w)-box.x,dx2=(box.x+box.w)-r.x,dy1=(r.y+r.h)-box.y,dy2=(box.y+box.h)-r.y;const penX=Math.min(dx1,dx2),penY=Math.min(dy1,dy2);if(penX<penY){if(dx1<dx2){box.x=r.x+r.w;}else{box.x=r.x-box.w;}vx=0;}else{if(dy1<dy2){box.y=r.y+r.h;vy=Math.max(0,vy);}else{box.y=r.y-box.h;vy=0;onGround=true;}}}if(box.x<0){box.x=0;vx=0;}if(box.x+box.w>W){box.x=W-box.w;vx=0;}return{x:box.x,y:box.y,vx,vy,onGround};}
@@ -230,10 +266,12 @@
     document.getElementById('restartBtn').addEventListener('click',()=>{loadLevel(0);});
     scoreForm.addEventListener('submit',e=>{
       e.preventDefault();
-      if(timerEnd==null)return;
+      if(timerEnd==null||scoreSubmitted)return;
       const name=(playerNameInput.value||'').trim()||'Player';
       pushTime(timerEnd,name);
       renderLB();
+      scoreSubmitted=true;
+      if(submitBtn)submitBtn.disabled=true;
       playerNameInput.value='';
       playerNameInput.focus();
     });
