@@ -79,6 +79,9 @@
     .menu-panel input {padding:8px 10px;font-family:monospace;background:#000;border:1px solid rgba(255,255,255,0.7);color:#fff;border-radius:4px;width:100%;}
     .menu-buttons {display:flex;flex-direction:column;gap:10px;width:100%;}
     .menu-buttons button {margin-top:0;width:100%;}
+    .menu-leaderboard {border-top:1px solid rgba(255,255,255,0.15);padding-top:14px;display:flex;flex-direction:column;gap:8px;}
+    .menu-leaderboard h2 {margin:0;font-size:16px;letter-spacing:2px;text-transform:uppercase;}
+    .leaderboard-scroll {max-height:220px;overflow-y:auto;padding-right:6px;}
     .completion-content .submit-info {font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#0ff;}
   </style>
 
@@ -104,6 +107,10 @@
       <div class="menu-buttons">
         <button id="playBtn" type="button">Play</button>
         <button id="settingsBtn" type="button">Settings</button>
+      </div>
+      <div class="menu-leaderboard">
+        <h2>Top 20 Runs</h2>
+        <ol id="menuLeaderboard" class="leaderboard-list leaderboard-scroll"></ol>
       </div>
     </div>
   </div>
@@ -207,6 +214,7 @@
     const completionMenu=document.getElementById('completionMenu');
     const finalTimeEl=document.getElementById('finalTime');
     const leaderboardEl=document.getElementById('leaderboard');
+    const menuLeaderboardEl=document.getElementById('menuLeaderboard');
     const submitScoreBtn=document.getElementById('submitScoreBtn');
     const scorePlayerNameEl=document.getElementById('scorePlayerName');
     const menuRestartBtn=document.getElementById('menuRestartBtn');
@@ -231,6 +239,7 @@
 
     const LB_KEY='retroPlatformerLB';
     const NAME_KEY='retroPlatformerName';
+    const LB_MAX_ENTRIES=20;
     function loadLB(){try{return JSON.parse(localStorage.getItem(LB_KEY))||[]}catch{return[]}}
     function saveLB(a){localStorage.setItem(LB_KEY,JSON.stringify(a));}
     function loadName(){try{return localStorage.getItem(NAME_KEY)||'';}catch{return'';}}
@@ -249,7 +258,7 @@
       arr.push(entry);
       arr.sort((a,b)=>a.ms-b.ms);
       let kept=true;
-      while(arr.length>5){
+      while(arr.length>LB_MAX_ENTRIES){
         const removed=arr.pop();
         if(removed===entry)kept=false;
       }
@@ -257,25 +266,31 @@
       saveLB(arr);
       return kept;
     }
-    function renderLB(){
+    function renderLeaderboard(targetEl,{limit=Infinity,highlight=null}={}){
+      if(!targetEl)return;
       const arr=loadLB();
       if(!arr.length){
-        leaderboardEl.innerHTML='<li>No times yet</li>';
+        targetEl.innerHTML='<li>No times yet</li>';
         return;
       }
       let highlightUsed=false;
-      leaderboardEl.innerHTML=arr.map(x=>{
-        const shouldHighlight=!highlightUsed&&highlightedEntry&&x.ms===highlightedEntry.ms&&x.name===highlightedEntry.name;
+      const entries=arr.slice(0,limit).map(x=>{
+        const shouldHighlight=!highlightUsed&&highlight&&x.ms===highlight.ms&&x.name===highlight.name;
         if(shouldHighlight)highlightUsed=true;
         const cls=shouldHighlight?' class="highlight"':'';
         return `<li${cls}>${x.name}: ${fmt(x.ms)}</li>`;
-      }).join('');
+      });
+      targetEl.innerHTML=entries.join('');
+    }
+    function updateLeaderboards(){
+      renderLeaderboard(leaderboardEl,{limit:5,highlight:highlightedEntry});
+      renderLeaderboard(menuLeaderboardEl,{limit:LB_MAX_ENTRIES});
     }
     function showCompletionMenu(){
       if(timerEnd==null)return;
       finalTimeEl.textContent=fmt(timerEnd);
       updateNameDisplays();
-      renderLB();
+      updateLeaderboards();
       completionMenu.classList.add('active');
       if(submitScoreBtn)submitScoreBtn.disabled=scoreSubmitted;
     }
@@ -427,6 +442,7 @@
       clearInputs();
       hideCompletionMenu();
       overlay('');
+      updateLeaderboards();
       updateNameDisplays();
     }
     function showSettings(){
@@ -456,7 +472,7 @@
     submitScoreBtn.addEventListener('click',()=>{
       if(timerEnd==null||scoreSubmitted)return;
       pushTime(timerEnd,currentPlayerName);
-      renderLB();
+      updateLeaderboards();
       scoreSubmitted=true;
       submitScoreBtn.disabled=true;
       updateNameDisplays();
@@ -480,7 +496,7 @@
 
     function init(){
       updateNameDisplays();
-      renderLB();
+      updateLeaderboards();
       if(hadStoredName){
         showMainMenu();
       }else{
